@@ -32,6 +32,7 @@ the common tasks and can be called on to run the main aspects of all the sub-scr
 	<property name="rt-openjdk8" location="lib/openJDK8Environment/openjdk8_rt.jar" />
 	<available file="${rt-openjdk6}" property="rt-openjdk6.available" />
 	<available file="${rt-openjdk8}" property="rt-openjdk8.available" />
+	<property environment="env"/>
 	
 	<path id="build.path">
 		<fileset dir="lib/build">
@@ -365,6 +366,43 @@ lombok.launch.AnnotationProcessorHider$ClaimingProcessor,isolating</echo>
 		<delete file="release-timestamp.txt" />
 		<copy file="dist/lombok-${lombok.version}.jar" tofile="dist/lombok.jar" />
 		<property name="lombok.dist.built" value="true" />
+	</target>
+	
+	<target name="-mvn-ext">
+		<condition property="mvn-ext" value=".cmd" else="">
+			<os family="windows" />
+		</condition>
+	</target>
+	
+	<target name="generate-pom" depends="version,dist">
+		<echo message="Lombok version: ${lombok.version}-SNAPSHOT" />
+		
+		<echo file="build/pom.xml"><![CDATA[<project>
+			<modelVersion>4.0.0</modelVersion>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>]]>${lombok.version}-SNAPSHOT<![CDATA[</version>
+</project>]]></echo>
+	</target>
+	
+	<target name="install-maven" depends="generate-pom,-mvn-ext" description="Install THE lombok.jar into the local maven repository using Apache Maven">
+		<condition property="mvn-exe" value="${env.MAVEN_HOME}/bin/mvn${mvn-ext}" else="mvn${mvn-ext}">
+			<isset property="env.MAVEN_HOME" />
+		</condition>
+		
+		<exec executable="${mvn-exe}" failifexecutionfails="false" resultproperty="mvn-result">
+			<arg value="install:install-file" />
+			<arg value="-Dfile=dist/lombok-${lombok.version}.jar" />
+			<arg value="-DgroupId=org.projectlombok" />
+			<arg value="-DartifactId=lombok" />
+			<arg value="-Dversion=${lombok.version}-SNAPSHOT" />
+			<arg value="-Dpackaging=jar" />
+			<arg value="-DpomFile=build/pom.xml" />
+		</exec>
+		<condition property="mvn-notfound" value="true">
+			<not><isset property="mvn-result" /></not>
+		</condition>
+		<fail message="mvn is not on your path and/or MAVEN_HOME is not set. Add mvn to your path or set MAVEN_HOME to continue." if="mvn-notfound" />
 	</target>
 	
 	<target name="dist-utils" description="Builds lombok-utils.jar, which is a library used by i.e. lombok.ast project." depends="version, compile">
