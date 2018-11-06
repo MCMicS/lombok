@@ -48,6 +48,7 @@ import lombok.core.AnnotationValues;
 import lombok.core.AnnotationValues.AnnotationValue;
 import lombok.core.TypeResolver;
 import lombok.core.configuration.NullCheckExceptionType;
+import lombok.core.configuration.TypeName;
 import lombok.core.debug.ProblemReporter;
 import lombok.core.handlers.HandlerUtil;
 import lombok.eclipse.Eclipse;
@@ -55,6 +56,7 @@ import lombok.eclipse.EclipseAST;
 import lombok.eclipse.EclipseNode;
 import lombok.experimental.Accessors;
 import lombok.experimental.Tolerate;
+import lombok.permit.Permit;
 
 import org.eclipse.jdt.internal.compiler.ast.ASTNode;
 import org.eclipse.jdt.internal.compiler.ast.AbstractMethodDeclaration;
@@ -336,9 +338,7 @@ public class EclipseHandlerUtil {
 		
 		private static Field getField(Class<?> c, String fName) {
 			try {
-				Field f = c.getDeclaredField(fName);
-				f.setAccessible(true);
-				return f;
+				return Permit.getField(c, fName);
 			} catch (Exception e) {
 				return null;
 			}
@@ -446,6 +446,24 @@ public class EclipseHandlerUtil {
 			out[idx++] = o;
 		}
 		return out;
+	}
+	
+	public static Annotation[] getTypeUseAnnotations(TypeReference from) {
+		Annotation[][] a;
+		try {
+			a = (Annotation[][]) reflect(TYPE_REFERENCE__ANNOTATIONS, from);
+		} catch (Exception e) {
+			return null;
+		}
+		if (a == null) return null;
+		Annotation[] b = a[a.length - 1];
+		return b.length == 0 ? null : b;
+	}
+	
+	public static void removeTypeUseAnnotations(TypeReference from) {
+		try {
+			reflectSet(TYPE_REFERENCE__ANNOTATIONS, from, null);
+		} catch (Exception ignore) {}
 	}
 	
 	public static TypeReference namePlusTypeParamsToTypeReference(char[] typeName, TypeParameter[] params, long p) {
@@ -654,6 +672,16 @@ public class EclipseHandlerUtil {
 		}
 	}
 	
+	public static EclipseNode findInnerClass(EclipseNode parent, String name) {
+		char[] c = name.toCharArray();
+		for (EclipseNode child : parent.down()) {
+			if (child.getKind() != Kind.TYPE) continue;
+			TypeDeclaration td = (TypeDeclaration) child.get();
+			if (Arrays.equals(td.name, c)) return child;
+		}
+		return null;
+	}
+	
 	public static EclipseNode findAnnotation(Class<? extends java.lang.annotation.Annotation> type, EclipseNode node) {
 		if (node == null) return null;
 		if (type == null) return null;
@@ -670,6 +698,47 @@ public class EclipseHandlerUtil {
 		default:
 			return null;
 		}
+	}
+	
+	public static boolean hasNonNullAnnotations(EclipseNode node) {
+		AbstractVariableDeclaration avd = (AbstractVariableDeclaration) node.get();
+		if (avd.annotations == null) return false;
+		for (Annotation annotation : avd.annotations) {
+			TypeReference typeRef = annotation.type;
+			if (typeRef != null && typeRef.getTypeName() != null) {
+				for (String bn : NONNULL_ANNOTATIONS) if (typeMatches(bn, node, typeRef)) return true;
+			}
+		}
+		return false;
+	}
+	
+	private static final Annotation[] EMPTY_ANNOTATIONS_ARRAY = new Annotation[0];
+	
+	/**
+	 * Searches the given field node for annotations and returns each one that is 'copyable' (either via configuration or from the base list).
+	 */
+	public static Annotation[] findCopyableAnnotations(EclipseNode node) {
+		AbstractVariableDeclaration avd = (AbstractVariableDeclaration) node.get();
+		if (avd.annotations == null) return EMPTY_ANNOTATIONS_ARRAY;
+		List<Annotation> result = new ArrayList<Annotation>();
+		List<TypeName> configuredCopyable = node.getAst().readConfiguration(ConfigurationKeys.COPYABLE_ANNOTATIONS);
+		
+		for (Annotation annotation : avd.annotations) {
+			TypeReference typeRef = annotation.type;
+			boolean match = false;
+			if (typeRef != null && typeRef.getTypeName() != null) {
+				for (TypeName cn : configuredCopyable) if (typeMatches(cn.toString(), node, typeRef)) {
+					result.add(annotation);
+					match = true;
+					break;
+				}
+				if (!match) for (String bn : BASE_COPYABLE_ANNOTATIONS) if (typeMatches(bn, node, typeRef)) {
+					result.add(annotation);
+					break;
+				}
+			}
+		}
+		return result.toArray(EMPTY_ANNOTATIONS_ARRAY);
 	}
 	
 	/**
@@ -1871,12 +1940,12 @@ public class EclipseHandlerUtil {
 		Constructor<IntLiteral> intLiteralConstructor_ = null;
 		Method intLiteralFactoryMethod_ = null;
 		try { 
-			intLiteralConstructor_ = IntLiteral.class.getConstructor(parameterTypes);
+			intLiteralConstructor_ = Permit.getConstructor(IntLiteral.class, parameterTypes);
 		} catch (Throwable ignore) {
 			// probably eclipse 3.7++
 		}
 		try { 
-			intLiteralFactoryMethod_ = IntLiteral.class.getMethod("buildIntLiteral", parameterTypes);
+			intLiteralFactoryMethod_ = Permit.getMethod(IntLiteral.class, "buildIntLiteral", parameterTypes);
 		} catch (Throwable ignore) {
 			// probably eclipse versions before 3.7
 		}

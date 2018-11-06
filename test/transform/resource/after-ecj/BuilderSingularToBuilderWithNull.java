@@ -5,13 +5,13 @@ import lombok.Singular;
     @java.lang.SuppressWarnings("all") BuilderSingularToBuilderWithNullBuilder() {
       super();
     }
-    public @java.lang.SuppressWarnings("all") BuilderSingularToBuilderWithNullBuilder elem(String elem) {
+    public @java.lang.SuppressWarnings("all") BuilderSingularToBuilderWithNullBuilder elem(final String elem) {
       if ((this.elems == null))
           this.elems = new java.util.ArrayList<String>();
       this.elems.add(elem);
       return this;
     }
-    public @java.lang.SuppressWarnings("all") BuilderSingularToBuilderWithNullBuilder elems(java.util.Collection<? extends String> elems) {
+    public @java.lang.SuppressWarnings("all") BuilderSingularToBuilderWithNullBuilder elems(final java.util.Collection<? extends String> elems) {
       if ((this.elems == null))
           this.elems = new java.util.ArrayList<String>();
       this.elems.addAll(elems);
@@ -52,6 +52,9 @@ import lombok.Singular;
     return new BuilderSingularToBuilderWithNullBuilder();
   }
   public @java.lang.SuppressWarnings("all") BuilderSingularToBuilderWithNullBuilder toBuilder() {
-    return new BuilderSingularToBuilderWithNullBuilder().elems(((this.elems == null) ? java.util.Collections.<String>emptyList() : this.elems));
+    final BuilderSingularToBuilderWithNullBuilder builder = new BuilderSingularToBuilderWithNullBuilder();
+    if ((this.elems != null))
+        builder.elems(this.elems);
+    return builder;
   }
 }
